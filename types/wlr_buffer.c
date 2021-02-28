@@ -13,6 +13,7 @@ void wlr_buffer_init(struct wlr_buffer *buffer,
 	buffer->impl = impl;
 	buffer->width = width;
 	buffer->height = height;
+	buffer->egl_stream = NULL;
 	wl_signal_init(&buffer->events.destroy);
 	wl_signal_init(&buffer->events.release);
 }
@@ -209,6 +210,8 @@ struct wlr_client_buffer *wlr_client_buffer_import(
 		// We have imported the DMA-BUF, but we need to prevent the client from
 		// re-using the same DMA-BUF for the next frames, so we don't release
 		// the buffer yet.
+	} else if ((texture = wlr_texture_from_wl_eglstream(renderer, resource))) {
+		(void)0; // Nothing special is needed for EGLStream texture here
 	} else {
 		wlr_log(WLR_ERROR, "Cannot upload texture: unknown buffer type");
 

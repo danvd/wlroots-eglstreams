@@ -192,7 +192,9 @@ static bool init_planes(struct wlr_drm_backend *drm) {
 
 		// We don't really care about overlay planes, as we don't support them
 		// yet.
-		if (type == DRM_PLANE_TYPE_OVERLAY) {
+		if (type == DRM_PLANE_TYPE_OVERLAY ||
+			// HW cursors are not supported for EGLStreams
+			(drm->is_eglstreams && type == DRM_PLANE_TYPE_CURSOR)) {
 			drmModeFreePlane(plane);
 			continue;
 		}
@@ -330,7 +332,13 @@ static void drm_plane_set_committed(struct wlr_drm_plane *plane) {
 static bool drm_crtc_commit(struct wlr_drm_connector *conn, uint32_t flags) {
 	struct wlr_drm_backend *drm = conn->backend;
 	struct wlr_drm_crtc *crtc = conn->crtc;
-	bool ok = drm->iface->crtc_commit(drm, conn, flags);
+
+	// Here, for EGLStreams, only modesetting is handled.
+	// Commit&Flip is done with EGL.
+	bool ok = drm->is_eglstreams && !crtc->pending_modeset;
+	if (!ok) {
+		ok = drm->iface->crtc_commit(drm, conn, flags);
+	}
 	if (ok && !(flags & DRM_MODE_ATOMIC_TEST_ONLY)) {
 		memcpy(&crtc->current, &crtc->pending, sizeof(struct wlr_drm_crtc_state));
 		drm_plane_set_committed(crtc->primary);
@@ -356,7 +364,9 @@ static bool drm_crtc_page_flip(struct wlr_drm_connector *conn) {
 	// page-flip, either a blocking modeset. When performing a blocking modeset
 	// we'll wait for all queued page-flips to complete, so we don't need this
 	// safeguard.
-	if (conn->pending_page_flip_crtc && !crtc->pending_modeset) {
+	// EGLStreams flip handler sets pending flip_crtc in advance.
+	if (!conn->backend->is_eglstreams &&
+			conn->pending_page_flip_crtc && !crtc->pending_modeset) {
 		wlr_drm_conn_log(conn, WLR_ERROR, "Failed to page-flip output: "
 			"a page-flip is already pending");
 		return false;
@@ -405,6 +415,10 @@ static bool test_buffer(struct wlr_drm_connector *conn,
 	struct wlr_drm_crtc *crtc = conn->crtc;
 	if (!crtc) {
 		return false;
+	}
+
+	if (drm->is_eglstreams) {
+		return true;
 	}
 
 	struct wlr_dmabuf_attributes attribs;
@@ -484,6 +498,11 @@ static bool drm_connector_commit_buffer(struct wlr_output *output) {
 	struct wlr_drm_plane *plane = crtc->primary;
 
 	assert(output->pending.committed & WLR_OUTPUT_STATE_BUFFER);
+
+	if(drm->is_eglstreams) {
+		wlr_egl_flip_eglstreams_page(output);
+	}
+
 	switch (output->pending.buffer_type) {
 	case WLR_OUTPUT_STATE_BUFFER_RENDER:
 		if (!drm_plane_lock_surface(plane, drm)) {
@@ -1333,6 +1352,14 @@ void scan_drm_connectors(struct wlr_drm_backend *drm) {
 
 			wlr_output_init(&wlr_conn->output, &drm->backend, &output_impl,
 				drm->display);
+			if (drm->is_eglstreams) {
+				wlr_log(WLR_INFO, "Forcing software cursors for EGLStreams mode");
+				wlr_conn->output.software_cursor_locks = 1;
+				// EGL vs DRM is 180 flipped
+				// FIXME: Is there a better way to do this?
+				wlr_conn->output.transform =
+					wlr_egl_normalize_output_transform(wlr_conn->output.transform);
+			}
 
 			memcpy(wlr_conn->output.name, wlr_conn->name,
 				sizeof(wlr_conn->output.name));
@@ -1459,7 +1486,6 @@ static int mhz_to_nsec(int mhz) {
 static void page_flip_handler(int fd, unsigned seq,
 		unsigned tv_sec, unsigned tv_usec, unsigned crtc_id, void *data) {
 	struct wlr_drm_backend *drm = data;
-
 	bool found = false;
 	struct wlr_drm_connector *conn;
 	wl_list_for_each(conn, &drm->outputs, link) {
@@ -1509,7 +1535,7 @@ static void page_flip_handler(int fd, unsigned seq,
 		/* The DRM backend guarantees that the presentation event will be for
 		 * the last submitted frame. */
 		.commit_seq = conn->output.commit_seq,
-		.when = &present_time,
+		.when =  tv_sec == 0 && tv_usec == 0 ? NULL: &present_time,
 		.seq = seq,
 		.refresh = mhz_to_nsec(conn->output.refresh),
 		.flags = present_flags,
@@ -1589,4 +1615,11 @@ void destroy_drm_connector(struct wlr_drm_connector *conn) {
 	drmModeFreeCrtc(conn->old_crtc);
 	wl_list_remove(&conn->link);
 	free(conn);
+}
+
+bool drm_is_eglstreams(int drm_fd) {
+	drmVersion *version = drmGetVersion(drm_fd);
+	int is_eglstreams = strcmp(version->name, "nvidia-drm") == 0;
+	drmFreeVersion(version);
+	return is_eglstreams;
 }
