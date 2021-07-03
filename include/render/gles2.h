@@ -69,6 +69,10 @@ struct wlr_gles2_renderer {
 		struct wlr_gles2_tex_shader tex_rgba;
 		struct wlr_gles2_tex_shader tex_rgbx;
 		struct wlr_gles2_tex_shader tex_ext;
+		// invert_y
+		struct wlr_gles2_tex_shader tex_rgba_invert_y;
+		struct wlr_gles2_tex_shader tex_rgbx_invert_y;
+		struct wlr_gles2_tex_shader tex_ext_invert_y;
 	} shaders;
 
 	struct wl_list buffers; // wlr_gles2_buffer.link
@@ -76,6 +80,7 @@ struct wlr_gles2_renderer {
 
 	struct wlr_gles2_buffer *current_buffer;
 	uint32_t viewport_width, viewport_height;
+	struct wl_list client_streams; //wlr_egl_client_stream.link
 };
 
 struct wlr_gles2_buffer {
@@ -86,6 +91,7 @@ struct wlr_gles2_buffer {
 	EGLImageKHR image;
 	GLuint rbo;
 	GLuint fbo;
+	GLuint egl_stream_texture;
 
 	struct wlr_addon addon;
 };
@@ -101,7 +107,9 @@ struct wlr_gles2_texture {
 	GLenum target;
 	GLuint tex;
 
+	// Either of two is non-null
 	EGLImageKHR image;
+	struct wlr_egl_client_stream *client_stream;
 
 	bool has_alpha;
 
@@ -110,8 +118,18 @@ struct wlr_gles2_texture {
 	// If imported from a wlr_buffer
 	struct wlr_buffer *buffer;
 	struct wlr_addon buffer_addon;
+	bool inverted_y;
 };
 
+struct  wlr_egl_client_stream {
+	struct wlr_buffer base;
+	struct wlr_gles2_renderer *renderer;
+	EGLStreamKHR stream;
+	GLuint tex;
+	EGLint inverted_y;
+	struct wl_resource* resource;
+	struct wl_list link; // wlr_gles2_renderer client_streams
+};
 
 bool is_gles2_pixel_format_supported(const struct wlr_gles2_renderer *renderer,
 	const struct wlr_gles2_pixel_format *format);
@@ -131,6 +149,9 @@ struct wlr_texture *gles2_texture_from_wl_drm(struct wlr_renderer *wlr_renderer,
 struct wlr_texture *gles2_texture_from_buffer(struct wlr_renderer *wlr_renderer,
 	struct wlr_buffer *buffer);
 void gles2_texture_destroy(struct wlr_gles2_texture *texture);
+
+struct wlr_buffer *gles2_buffer_from_wl_eglstream(struct wlr_renderer *wlr_renderer,
+		struct wl_resource *resource, struct wl_array *attribs);
 
 void push_gles2_debug_(struct wlr_gles2_renderer *renderer,
 	const char *file, const char *func);

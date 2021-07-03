@@ -15,6 +15,7 @@ void wlr_buffer_init(struct wlr_buffer *buffer,
 	buffer->impl = impl;
 	buffer->width = width;
 	buffer->height = height;
+	buffer->egl_stream = NULL;
 	wl_signal_init(&buffer->events.destroy);
 	wl_signal_init(&buffer->events.release);
 	wlr_addon_set_init(&buffer->addons);

@@ -71,6 +71,7 @@ struct wlr_client_buffer *wlr_client_buffer_create(struct wlr_buffer *buffer,
 		texture->width, texture->height);
 	client_buffer->source = buffer;
 	client_buffer->texture = texture;
+	client_buffer->base.egl_stream = buffer->egl_stream;
 
 	wl_signal_add(&buffer->events.destroy, &client_buffer->source_destroy);
 	client_buffer->source_destroy.notify = client_buffer_handle_source_destroy;

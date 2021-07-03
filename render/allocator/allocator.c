@@ -19,6 +19,9 @@
 #include "render/allocator/gbm.h"
 #endif
 
+#include "backend/drm/drm.h"
+#include "render/eglstreams_allocator.h"
+
 void wlr_allocator_init(struct wlr_allocator *alloc,
 		const struct wlr_allocator_interface *impl, uint32_t buffer_caps) {
 	assert(impl && impl->destroy && impl->create_buffer);
@@ -95,6 +98,11 @@ struct wlr_allocator *allocator_autocreate_with_drm_fd(
 		struct wlr_backend *backend, struct wlr_renderer *renderer,
 		int drm_fd) {
 	uint32_t backend_caps = backend_get_buffer_caps(backend);
+
+	if (drm_is_eglstreams(drm_fd)) {
+		return wlr_eglstreams_allocator_create(backend, renderer, backend_caps);
+	}
+
 	uint32_t renderer_caps = renderer_get_render_buffer_caps(renderer);
 
 	struct wlr_allocator *alloc = NULL;
@@ -163,9 +171,10 @@ void wlr_allocator_destroy(struct wlr_allocator *alloc) {
 }
 
 struct wlr_buffer *wlr_allocator_create_buffer(struct wlr_allocator *alloc,
-		int width, int height, const struct wlr_drm_format *format) {
+		int width, int height, const struct wlr_drm_format *format,
+		void *data) {
 	struct wlr_buffer *buffer =
-		alloc->impl->create_buffer(alloc, width, height, format);
+		alloc->impl->create_buffer(alloc, width, height, format, data);
 	if (buffer == NULL) {
 		return NULL;
 	}

@@ -5,6 +5,7 @@
 #include <wlr/types/wlr_drm.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/util/log.h>
+#include <wlr/render/wlr_texture.h>
 #include "types/wlr_buffer.h"
 
 bool wlr_resource_is_buffer(struct wl_resource *resource) {
@@ -45,8 +46,9 @@ static const struct wlr_buffer_resource_interface *get_buffer_resource_iface(
 	return NULL;
 }
 
-struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource) {
-	assert(resource && wlr_resource_is_buffer(resource));
+struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource,
+	struct wlr_renderer *renderer) {
+	assert(resource && renderer && wlr_resource_is_buffer(resource));
 
 	struct wlr_buffer *buffer;
 	if (wl_shm_buffer_get(resource) != NULL) {
@@ -65,6 +67,8 @@ struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource) {
 		struct wlr_drm_buffer *drm_buffer =
 			wlr_drm_buffer_from_resource(resource);
 		buffer = wlr_buffer_lock(&drm_buffer->base);
+	} else if ((buffer = wlr_buffer_from_wl_eglstream(renderer, resource, NULL))) {
+		buffer = wlr_buffer_lock(buffer);
 	} else {
 		const struct wlr_buffer_resource_interface *iface =
 				get_buffer_resource_iface(resource);

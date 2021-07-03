@@ -18,6 +18,8 @@
 #include "render/gles2.h"
 #include "render/pixel_format.h"
 #include "types/wlr_matrix.h"
+#include "types/wlr_buffer.h"
+#include "backend/drm/drm.h"
 
 static const GLfloat verts[] = {
 	1, 0, // top right
@@ -49,22 +51,21 @@ static struct wlr_gles2_renderer *gles2_get_renderer_in_context(
 static void destroy_buffer(struct wlr_gles2_buffer *buffer) {
 	wl_list_remove(&buffer->link);
 	wlr_addon_finish(&buffer->addon);
-
 	struct wlr_egl_context prev_ctx;
 	wlr_egl_save_context(&prev_ctx);
 	wlr_egl_make_current(buffer->renderer->egl);
-
 	push_gles2_debug(buffer->renderer);
-
 	glDeleteFramebuffers(1, &buffer->fbo);
-	glDeleteRenderbuffers(1, &buffer->rbo);
+
+	if (buffer->buffer->egl_stream) {
+		glDeleteTextures(1, &buffer->egl_stream_texture);
+	} else {
+		glDeleteRenderbuffers(1, &buffer->rbo);
+		wlr_egl_destroy_image(buffer->renderer->egl, buffer->image);
+	}
 
 	pop_gles2_debug(buffer->renderer);
-
-	wlr_egl_destroy_image(buffer->renderer->egl, buffer->image);
-
 	wlr_egl_restore_context(&prev_ctx);
-
 	free(buffer);
 }
 
@@ -99,31 +100,48 @@ static struct wlr_gles2_buffer *create_buffer(struct wlr_gles2_renderer *rendere
 	}
 	buffer->buffer = wlr_buffer;
 	buffer->renderer = renderer;
+	if (buffer->buffer->egl_stream) {
+		assert(buffer->buffer->egl_stream->surface);
+		push_gles2_debug(renderer);
 
-	struct wlr_dmabuf_attributes dmabuf = {0};
-	if (!wlr_buffer_get_dmabuf(wlr_buffer, &dmabuf)) {
-		goto error_buffer;
+		buffer->rbo = 0;
+		glGenFramebuffers(1, &buffer->fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
+		glGenTextures(1, &buffer->egl_stream_texture);
+		glBindTexture(GL_TEXTURE_2D, buffer->egl_stream_texture);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_BGRA8_EXT,
+				wlr_buffer->width, wlr_buffer->height, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, 0);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, buffer->egl_stream_texture, 0);
+		glBindTexture(GL_TEXTURE_2D, 0);
+	} else {
+		struct wlr_dmabuf_attributes dmabuf = {0};
+		if (!wlr_buffer_get_dmabuf(wlr_buffer, &dmabuf)) {
+			goto error_buffer;
+		}
+
+		bool external_only;
+		buffer->image = wlr_egl_create_image_from_dmabuf(renderer->egl,
+			&dmabuf, &external_only);
+		if (buffer->image == EGL_NO_IMAGE_KHR) {
+			goto error_buffer;
+		}
+
+		push_gles2_debug(renderer);
+
+		glGenRenderbuffers(1, &buffer->rbo);
+		glBindRenderbuffer(GL_RENDERBUFFER, buffer->rbo);
+		renderer->procs.glEGLImageTargetRenderbufferStorageOES(GL_RENDERBUFFER,
+			buffer->image);
+		glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+		glGenFramebuffers(1, &buffer->fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
+		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+			GL_RENDERBUFFER, buffer->rbo);
 	}
 
-	bool external_only;
-	buffer->image = wlr_egl_create_image_from_dmabuf(renderer->egl,
-		&dmabuf, &external_only);
-	if (buffer->image == EGL_NO_IMAGE_KHR) {
-		goto error_buffer;
-	}
-
-	push_gles2_debug(renderer);
-
-	glGenRenderbuffers(1, &buffer->rbo);
-	glBindRenderbuffer(GL_RENDERBUFFER, buffer->rbo);
-	renderer->procs.glEGLImageTargetRenderbufferStorageOES(GL_RENDERBUFFER,
-		buffer->image);
-	glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-	glGenFramebuffers(1, &buffer->fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-		GL_RENDERBUFFER, buffer->rbo);
 	GLenum fb_status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -172,6 +190,9 @@ static bool gles2_bind_buffer(struct wlr_renderer *wlr_renderer,
 		return true;
 	}
 
+	// Used for setting up current EGL context for a frame.
+	renderer->egl->current_eglstream = wlr_buffer->egl_stream;
+
 	wlr_egl_make_current(renderer->egl);
 
 	struct wlr_gles2_buffer *buffer = get_buffer(renderer, wlr_buffer);
@@ -216,8 +237,69 @@ static void gles2_begin(struct wlr_renderer *wlr_renderer, uint32_t width,
 }
 
 static void gles2_end(struct wlr_renderer *wlr_renderer) {
-	gles2_get_renderer_in_context(wlr_renderer);
-	// no-op
+	struct wlr_gles2_renderer *renderer = gles2_get_renderer_in_context(wlr_renderer);
+	if(!renderer->current_buffer || !renderer->current_buffer->egl_stream_texture)
+	{
+		// no-op
+		return;
+	}
+
+	// Renders eglstream offscreen buffer
+	push_gles2_debug(renderer);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	glViewport(0, 0, renderer->current_buffer->buffer->width,
+			renderer->current_buffer->buffer->height);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, renderer->current_buffer->egl_stream_texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	float gl_matrix[9];
+	wlr_matrix_identity(gl_matrix);
+
+	// OpenGL ES 2 requires the glUniformMatrix3fv transpose parameter to be set
+	// to GL_FALSE
+	struct wlr_gles2_tex_shader *shader = &renderer->shaders.tex_rgba_invert_y;
+	glUseProgram(shader->program);
+
+	glUniformMatrix3fv(shader->proj, 1, GL_FALSE, gl_matrix);
+	glUniform1i(shader->tex, 0);
+	glUniform1f(shader->alpha, 1.0f);
+
+	const GLfloat egl_verts[] = {
+		1, -1, // top right
+		-1, -1, // top left
+		1, 1, // bottom right
+		-1, 1, // bottom left
+	};
+	const GLfloat texcoord[] = {
+		1, 0, // top right
+		0, 0, // top left
+		1, 1, // bottom right
+		0, 1, // bottom left
+	};
+
+	glVertexAttribPointer(shader->pos_attrib, 2, GL_FLOAT, GL_FALSE, 0, egl_verts);
+	glVertexAttribPointer(shader->tex_attrib, 2, GL_FLOAT, GL_FALSE, 0, texcoord);
+
+	glEnableVertexAttribArray(shader->pos_attrib);
+	glEnableVertexAttribArray(shader->tex_attrib);
+
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	glDisableVertexAttribArray(shader->pos_attrib);
+	glDisableVertexAttribArray(shader->tex_attrib);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glUseProgram(0);
+
+	pop_gles2_debug(renderer);
+	if (!renderer->egl->current_eglstream->busy) {
+		eglSwapBuffers(renderer->egl->display, renderer->egl->current_eglstream->surface);
+	}	
 }
 
 static void gles2_clear(struct wlr_renderer *wlr_renderer,
@@ -256,24 +338,46 @@ static bool gles2_render_subtexture_with_matrix(
 		gles2_get_texture(wlr_texture);
 	assert(texture->renderer == renderer);
 
+	struct wlr_egl *egl = wlr_gles2_renderer_get_egl(wlr_renderer);
 	struct wlr_gles2_tex_shader *shader = NULL;
-
 	switch (texture->target) {
 	case GL_TEXTURE_2D:
 		if (texture->has_alpha) {
-			shader = &renderer->shaders.tex_rgba;
+			shader = texture->inverted_y ?
+				&renderer->shaders.tex_rgba_invert_y :
+				&renderer->shaders.tex_rgba;
 		} else {
-			shader = &renderer->shaders.tex_rgbx;
+			shader = texture->inverted_y ?
+				&renderer->shaders.tex_rgbx_invert_y :
+				&renderer->shaders.tex_rgbx;
 		}
 		break;
 	case GL_TEXTURE_EXTERNAL_OES:
-		// EGL_EXT_image_dma_buf_import_modifiers requires
-		// GL_OES_EGL_image_external
-		assert(renderer->exts.OES_egl_image_external);
-		shader = &renderer->shaders.tex_ext;
+		shader = texture->inverted_y ?
+			&renderer->shaders.tex_ext_invert_y :
+			&renderer->shaders.tex_ext;
+
+		if (!renderer->exts.OES_egl_image_external) {
+			wlr_log(WLR_ERROR, "Failed to render texture: "
+				"GL_TEXTURE_EXTERNAL_OES not supported");
+			return false;
+		}
 		break;
 	default:
 		abort();
+	}
+
+	if (texture->client_stream) {
+		EGLint state = EGL_STREAM_STATE_EMPTY_KHR;
+		if(egl->procs.eglQueryStreamKHR(egl->display, texture->client_stream->stream,
+			EGL_STREAM_STATE_KHR, &state) == EGL_TRUE &&
+			(state != EGL_STREAM_STATE_EMPTY_KHR)) {
+				egl->procs.eglStreamFlushNV(egl->display, texture->client_stream->stream);
+			if (!wlr_egl_try_to_acquire_stream(egl, texture->client_stream->stream, NULL)) {
+				return false;
+			}
+
+		}
 	}
 
 	float gl_matrix[9];
@@ -327,6 +431,7 @@ static bool gles2_render_subtexture_with_matrix(
 	glBindTexture(texture->target, 0);
 
 	pop_gles2_debug(renderer);
+
 	return true;
 }
 
@@ -505,6 +610,10 @@ static void gles2_destroy(struct wlr_renderer *wlr_renderer) {
 	glDeleteProgram(renderer->shaders.tex_rgba.program);
 	glDeleteProgram(renderer->shaders.tex_rgbx.program);
 	glDeleteProgram(renderer->shaders.tex_ext.program);
+	// invert y
+	glDeleteProgram(renderer->shaders.tex_rgba_invert_y.program);
+	glDeleteProgram(renderer->shaders.tex_rgbx_invert_y.program);
+	glDeleteProgram(renderer->shaders.tex_ext_invert_y.program);
 	pop_gles2_debug(renderer);
 
 	if (renderer->exts.KHR_debug) {
@@ -539,6 +648,7 @@ static const struct wlr_renderer_impl renderer_impl = {
 	.get_drm_fd = gles2_get_drm_fd,
 	.get_render_buffer_caps = gles2_get_render_buffer_caps,
 	.texture_from_buffer = gles2_texture_from_buffer,
+	.buffer_from_wl_eglstream = gles2_buffer_from_wl_eglstream,
 };
 
 void push_gles2_debug_(struct wlr_gles2_renderer *renderer,
@@ -668,6 +778,7 @@ static void load_gl_proc(void *proc_ptr, const char *name) {
 extern const GLchar quad_vertex_src[];
 extern const GLchar quad_fragment_src[];
 extern const GLchar tex_vertex_src[];
+extern const GLchar tex_vertex_invert_y_src[];
 extern const GLchar tex_fragment_src_rgba[];
 extern const GLchar tex_fragment_src_rgbx[];
 extern const GLchar tex_fragment_src_external[];
@@ -678,7 +789,6 @@ struct wlr_renderer *wlr_gles2_renderer_create_with_drm_fd(int drm_fd) {
 		wlr_log(WLR_ERROR, "Could not initialize EGL");
 		return NULL;
 	}
-
 	struct wlr_renderer *renderer = wlr_gles2_renderer_create(egl);
 	if (!renderer) {
 		wlr_log(WLR_ERROR, "Failed to create GLES2 renderer");
@@ -687,6 +797,25 @@ struct wlr_renderer *wlr_gles2_renderer_create_with_drm_fd(int drm_fd) {
 	}
 
 	return renderer;
+}
+
+static bool setup_shader(struct wlr_gles2_renderer *renderer,
+		const char *vertex_src, const char *frag_src,
+		struct wlr_gles2_tex_shader *shader)
+{
+	GLint prog = shader->program =
+		link_program(renderer, vertex_src, frag_src);
+	if (!prog) {
+		return false;
+	}
+
+	shader->proj = glGetUniformLocation(prog, "proj");
+	shader->tex = glGetUniformLocation(prog, "tex");
+	shader->alpha = glGetUniformLocation(prog, "alpha");
+	shader->pos_attrib = glGetAttribLocation(prog, "pos");
+	shader->tex_attrib = glGetAttribLocation(prog, "texcoord");
+
+	return true;
 }
 
 struct wlr_renderer *wlr_gles2_renderer_create(struct wlr_egl *egl) {
@@ -709,6 +838,7 @@ struct wlr_renderer *wlr_gles2_renderer_create(struct wlr_egl *egl) {
 
 	wl_list_init(&renderer->buffers);
 	wl_list_init(&renderer->textures);
+	wl_list_init(&renderer->client_streams);
 
 	renderer->egl = egl;
 	renderer->exts_str = exts_str;
@@ -792,39 +922,40 @@ struct wlr_renderer *wlr_gles2_renderer_create(struct wlr_egl *egl) {
 	renderer->shaders.quad.color = glGetUniformLocation(prog, "color");
 	renderer->shaders.quad.pos_attrib = glGetAttribLocation(prog, "pos");
 
-	renderer->shaders.tex_rgba.program = prog =
-		link_program(renderer, tex_vertex_src, tex_fragment_src_rgba);
-	if (!renderer->shaders.tex_rgba.program) {
+	if (!setup_shader(renderer, tex_vertex_src,
+				tex_fragment_src_rgba, &renderer->shaders.tex_rgba)) {
 		goto error;
-	}
-	renderer->shaders.tex_rgba.proj = glGetUniformLocation(prog, "proj");
-	renderer->shaders.tex_rgba.tex = glGetUniformLocation(prog, "tex");
-	renderer->shaders.tex_rgba.alpha = glGetUniformLocation(prog, "alpha");
-	renderer->shaders.tex_rgba.pos_attrib = glGetAttribLocation(prog, "pos");
-	renderer->shaders.tex_rgba.tex_attrib = glGetAttribLocation(prog, "texcoord");
 
-	renderer->shaders.tex_rgbx.program = prog =
-		link_program(renderer, tex_vertex_src, tex_fragment_src_rgbx);
-	if (!renderer->shaders.tex_rgbx.program) {
-		goto error;
 	}
-	renderer->shaders.tex_rgbx.proj = glGetUniformLocation(prog, "proj");
-	renderer->shaders.tex_rgbx.tex = glGetUniformLocation(prog, "tex");
-	renderer->shaders.tex_rgbx.alpha = glGetUniformLocation(prog, "alpha");
-	renderer->shaders.tex_rgbx.pos_attrib = glGetAttribLocation(prog, "pos");
-	renderer->shaders.tex_rgbx.tex_attrib = glGetAttribLocation(prog, "texcoord");
+
+	if (!setup_shader(renderer, tex_vertex_invert_y_src,
+				tex_fragment_src_rgba, &renderer->shaders.tex_rgba_invert_y)) {
+		goto error;
+
+	}
+
+	if (!setup_shader(renderer, tex_vertex_src,
+				tex_fragment_src_rgbx, &renderer->shaders.tex_rgbx)) {
+		goto error;
+
+	}
+
+	if (!setup_shader(renderer, tex_vertex_invert_y_src,
+				tex_fragment_src_rgbx, &renderer->shaders.tex_rgbx_invert_y)) {
+		goto error;
+
+	}
 
 	if (renderer->exts.OES_egl_image_external) {
-		renderer->shaders.tex_ext.program = prog =
-			link_program(renderer, tex_vertex_src, tex_fragment_src_external);
-		if (!renderer->shaders.tex_ext.program) {
+		if (!setup_shader(renderer, tex_vertex_src,
+					tex_fragment_src_external, &renderer->shaders.tex_ext)) {
 			goto error;
 		}
-		renderer->shaders.tex_ext.proj = glGetUniformLocation(prog, "proj");
-		renderer->shaders.tex_ext.tex = glGetUniformLocation(prog, "tex");
-		renderer->shaders.tex_ext.alpha = glGetUniformLocation(prog, "alpha");
-		renderer->shaders.tex_ext.pos_attrib = glGetAttribLocation(prog, "pos");
-		renderer->shaders.tex_ext.tex_attrib = glGetAttribLocation(prog, "texcoord");
+
+		if (!setup_shader(renderer, tex_vertex_invert_y_src,
+					tex_fragment_src_external, &renderer->shaders.tex_ext_invert_y)) {
+			goto error;
+		}
 	}
 
 	pop_gles2_debug(renderer);

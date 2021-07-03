@@ -15,6 +15,9 @@
 #include <wlr/xwayland.h>
 #include "sockets.h"
 #include "xwayland/xwm.h"
+#include "xwayland_keyboard_grab_unstable.h"
+
+extern struct xwayland_keyboard_grab_manager *xwayland_keyboard_grab_manager;
 
 struct wlr_xwayland_cursor {
 	uint8_t *pixels;
@@ -41,6 +44,14 @@ static void handle_server_ready(struct wl_listener *listener, void *data) {
 	xwayland->xwm = xwm_create(xwayland, event->wm_fd);
 	if (!xwayland->xwm) {
 		return;
+	}
+
+	// TODO(danvd): Not the best way of doing things...
+	if (!xwayland_keyboard_grab_manager) {
+		xwayland->keyboard_grab_manager =
+			xwayland_keyboard_grab_manager_create(xwayland->wl_display);
+	} else {
+		xwayland->keyboard_grab_manager = xwayland_keyboard_grab_manager;
 	}
 
 	if (xwayland->seat) {
