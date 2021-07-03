@@ -73,9 +73,10 @@ void wlr_allocator_destroy(struct wlr_allocator *alloc) {
 }
 
 struct wlr_buffer *wlr_allocator_create_buffer(struct wlr_allocator *alloc,
-		int width, int height, const struct wlr_drm_format *format) {
+		int width, int height, const struct wlr_drm_format *format,
+		void *data) {
 	struct wlr_buffer *buffer =
-		alloc->impl->create_buffer(alloc, width, height, format);
+		alloc->impl->create_buffer(alloc, width, height, format, data);
 	if (buffer == NULL) {
 		return NULL;
 	}

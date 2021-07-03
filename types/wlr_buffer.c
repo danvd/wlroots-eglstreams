@@ -19,6 +19,7 @@ void wlr_buffer_init(struct wlr_buffer *buffer,
 	buffer->impl = impl;
 	buffer->width = width;
 	buffer->height = height;
+	buffer->egl_stream = NULL;
 	wl_signal_init(&buffer->events.destroy);
 	wl_signal_init(&buffer->events.release);
 }
@@ -192,8 +193,9 @@ static const struct wlr_buffer_resource_interface *get_buffer_resource_iface(
 	return NULL;
 }
 
-struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource) {
-	assert(resource && wlr_resource_is_buffer(resource));
+struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource,
+	struct wlr_renderer *renderer) {
+	assert(resource && renderer && wlr_resource_is_buffer(resource));
 
 	struct wlr_buffer *buffer;
 	if (wl_shm_buffer_get(resource) != NULL) {
@@ -212,6 +214,8 @@ struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource) {
 		struct wlr_drm_buffer *drm_buffer =
 			wlr_drm_buffer_from_resource(resource);
 		buffer = wlr_buffer_lock(&drm_buffer->base);
+	} else if ((buffer = wlr_buffer_from_wl_eglstream(renderer, resource, NULL))) {
+		buffer = wlr_buffer_lock(buffer);
 	} else {
 		const struct wlr_buffer_resource_interface *iface =
 				get_buffer_resource_iface(resource);
@@ -235,6 +239,7 @@ struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource) {
 struct wlr_client_buffer *wlr_client_buffer_create(struct wlr_buffer *buffer,
 		struct wlr_renderer *renderer) {
 	struct wlr_texture *texture = wlr_texture_from_buffer(renderer, buffer);
+
 	if (texture == NULL) {
 		wlr_log(WLR_ERROR, "Failed to create texture");
 		return NULL;
@@ -250,6 +255,7 @@ struct wlr_client_buffer *wlr_client_buffer_create(struct wlr_buffer *buffer,
 		texture->width, texture->height);
 	client_buffer->source = buffer;
 	client_buffer->texture = texture;
+	client_buffer->base.egl_stream = buffer->egl_stream;
 
 	wl_signal_add(&buffer->events.destroy, &client_buffer->source_destroy);
 	client_buffer->source_destroy.notify = client_buffer_handle_source_destroy;

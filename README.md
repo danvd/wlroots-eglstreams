@@ -1,4 +1,44 @@
-# wlroots
+# wlroots-eglstreams - NVidia EGLStreams support for popular wayland compositor library!
+
+Supported:
+```
+Add EGLStreams support for DRM backend
+
+Supported:
+1. Damage tracking
+2. EGLStreams buffer allocator
+3. VT switching, sleep/wakeup restoring
+4. Client's wayland GL texture import
+5. Multi-out
+
+Known issues
+1. Absence of Multi-GPU support. Due to lack of dma-buf (Nvidia's WIP)
+2. Screenshots through dma-buf (the same reason). TODO with another
+   approach if possible
+3. XWayland acceleration support (Nvidia's WIP)
+4. mpv works with `-vo gpu` only with --opengl-es=yes
+
+Note: All dma-buf extensions are disabled for EGLStreams mode.
+Else chrome/chromium and other apps relying on them fail to start.
+
+TIP: run mozilla with MOZ_ENABLE_WAYLAND=1 and MOZ_WEBRENDER=0,
+chrome with --enable-features=UseOzonePlatform --ozone-platform=wayland.
+```
+---
+**NOTE**
+This repo is to be constantly rebased upon original wlroots.
+Be sure before a rebuild to update your local copy
+either by recloning or:
+```
+cd wlroots-eglstreams
+git fetch
+git reset --hard origin/master
+```
+Rebuild and reinstall sway if using it.
+
+
+---
+
 
 Pluggable, composable, unopinionated modules for building a [Wayland]
 compositor; or about 50,000 lines of code you were going to write anyway.

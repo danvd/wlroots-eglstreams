@@ -12,6 +12,7 @@
 #include <pixman.h>
 #include <wayland-server-core.h>
 #include <wlr/render/dmabuf.h>
+#include <wlr/render/egl.h>
 
 struct wlr_buffer;
 struct wlr_renderer;
@@ -67,6 +68,9 @@ struct wlr_buffer {
 		struct wl_signal destroy;
 		struct wl_signal release;
 	} events;
+
+	// Non-null for EGLStreams
+	struct wlr_eglstream *egl_stream;
 };
 
 struct wlr_buffer_resource_interface {
@@ -132,7 +136,8 @@ void wlr_buffer_register_resource_interface(
  *
  * The provided wl_resource must be a wl_buffer.
  */
-struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource);
+struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource,
+	struct wlr_renderer *renderer);
 
 /**
  * A client buffer.

@@ -63,7 +63,7 @@ noreturn static void exec_xwayland(struct wlr_xwayland_server *server) {
 
 	char *argv[] = {
 		"Xwayland", NULL /* display, e.g. :1 */,
-		"-rootless", "-terminate", "-core",
+		"-rootless", "-terminate", "-core", "-eglstream",
 #if HAVE_XWAYLAND_LISTENFD
 		"-listenfd", NULL /* x_fd[0] */,
 		"-listenfd", NULL /* x_fd[1] */,

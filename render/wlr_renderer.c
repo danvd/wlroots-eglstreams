@@ -40,6 +40,13 @@ void wlr_renderer_destroy(struct wlr_renderer *r) {
 		return;
 	}
 
+	struct wlr_egl *egl = r->impl->get_egl(r);
+
+	if (egl->procs.eglUnbindWaylandDisplayWL && egl->wl_display) {
+		egl->procs.eglUnbindWaylandDisplayWL(egl->display,
+				egl->wl_display);
+	}
+
 	assert(!r->rendering);
 
 	wlr_signal_emit_safe(&r->events.destroy, r);
@@ -225,6 +232,7 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 	}
 	assert(argb8888 && xrgb8888);
 
+	struct wlr_egl *egl = wlr_renderer_get_egl(r);
 	if (wlr_renderer_get_dmabuf_texture_formats(r) != NULL) {
 		if (wlr_renderer_get_drm_fd(r) >= 0) {
 			if (wlr_drm_create(wl_display, r) == NULL) {
@@ -234,9 +242,15 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 			wlr_log(WLR_INFO, "Cannot get renderer DRM FD, disabling wl_drm");
 		}
 
-		if (wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
+		if (egl->exts.EXT_image_dma_buf_import &&
+			wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
 			return false;
 		}
+	}
+
+	if (egl->procs.eglBindWaylandDisplayWL) {
+		egl->procs.eglBindWaylandDisplayWL(egl->display, wl_display);
+		egl->wl_display = wl_display;
 	}
 
 	return true;
@@ -299,3 +313,11 @@ int wlr_renderer_get_drm_fd(struct wlr_renderer *r) {
 	}
 	return r->impl->get_drm_fd(r);
 }
+
+struct wlr_egl *wlr_renderer_get_egl(struct wlr_renderer *r) {
+	if (!r->impl->get_egl) {
+		return NULL;
+	}
+	return r->impl->get_egl(r);
+} 
+

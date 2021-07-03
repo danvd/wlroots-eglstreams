@@ -172,7 +172,8 @@ static void surface_state_finalize(struct wlr_surface *surface,
 	if ((state->committed & WLR_SURFACE_STATE_BUFFER)) {
 		if (state->buffer_resource) {
 			wlr_buffer_unlock(state->buffer);
-			state->buffer = wlr_buffer_from_resource(state->buffer_resource);
+			state->buffer = wlr_buffer_from_resource(state->buffer_resource,
+						surface->renderer);
 			if (!state->buffer) {
 				wl_resource_post_error(state->buffer_resource, 0,
 						"unknown buffer type");
@@ -396,6 +397,13 @@ static void surface_apply_damage(struct wlr_surface *surface) {
 		wlr_buffer_unlock(&surface->buffer->base);
 	}
 	surface->buffer = buffer;
+	// if (surface->is_eglstream) {
+	// 	// Let eglstream to do damage tracking. NOTE: this is not needed anymore
+	// 	pixman_region32_union_rect(
+	// 		&surface->buffer_damage, &surface->buffer_damage, 0, 0,
+	// 		buffer->texture->width, buffer->texture->height);
+
+	// }
 }
 
 static void surface_update_opaque_region(struct wlr_surface *surface) {
@@ -781,6 +789,8 @@ struct wlr_surface *surface_create(struct wl_client *client,
 
 	wl_signal_add(&renderer->events.destroy, &surface->renderer_destroy);
 	surface->renderer_destroy.notify = surface_handle_renderer_destroy;
+
+	surface->is_eglstream = false;
 
 	return surface;
 }
