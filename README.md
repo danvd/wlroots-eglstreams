@@ -1,4 +1,39 @@
-# wlroots
+## wlroots-eglstreams - NVidia EGLStreams support for popular wayland compositor library!
+
+Supported:
+```
+Add EGLStreams support for DRM backend
+
+Supported:
+1. Damage tracking
+2. EGLStreams buffer allocator
+3. DMA-BUF mostly works
+4. VT switching, sleep/wakeup restoring
+5. Client's wayland GL texture import
+6. Multi-out
+
+Known issues
+1. Multi-GPU support not tested
+
+TIP: run mozilla with MOZ_ENABLE_WAYLAND=1 and MOZ_WEBRENDER=0,
+
+This repo also contains implementation of xwayland_keyboard_grab_unstable_v1 protocol.
+
+```
+---
+**NOTE**
+This repo is to be constantly rebased upon original wlroots.
+Be sure before a rebuild to update your local copy
+either by recloning or:
+```
+cd wlroots-eglstreams
+git fetch
+git reset --hard origin/master
+```
+Rebuild and reinstall sway if using it.
+
+---
+
 
 Pluggable, composable, unopinionated modules for building a [Wayland]
 compositor; or about 60,000 lines of code you were going to write anyway.
@@ -29,11 +64,6 @@ development tools - or any subset of these features you like, because all of
 them work independently of one another and freely compose with anything you want
 to implement yourself.
 
-Check out our [wiki] to get started with wlroots. Join our IRC channel:
-[#sway-devel on Libera Chat].
-
-A variety of [wrapper libraries] are available for using it with your favorite
-programming language.
 
 ## Building
 
@@ -75,7 +105,6 @@ See [CONTRIBUTING.md].
 
 [Wayland]: https://wayland.freedesktop.org/
 [wiki]: https://gitlab.freedesktop.org/wlroots/wlroots/-/wikis/Getting-started
-[#sway-devel on Libera Chat]: https://web.libera.chat/gamja/?channels=#sway-devel
 [wrapper libraries]: https://gitlab.freedesktop.org/wlroots/wlroots/-/wikis/Projects-which-use-wlroots#wrapper-libraries
 [libseat]: https://git.sr.ht/~kennylevinsen/seatd
 [CONTRIBUTING.md]: https://gitlab.freedesktop.org/wlroots/wlroots/-/blob/master/CONTRIBUTING.md

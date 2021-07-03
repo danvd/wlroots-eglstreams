@@ -87,3 +87,12 @@ bool wlr_texture_update_from_buffer(struct wlr_texture *texture,
 	}
 	return texture->impl->update_from_buffer(texture, buffer, damage);
 }
+
+struct wlr_buffer *wlr_buffer_from_wl_eglstream(struct wlr_renderer *renderer,
+	struct wl_resource *resource, struct wl_array *attribs) {
+	if (!renderer->impl->buffer_from_wl_eglstream) {
+		return NULL;
+	}
+	return renderer->impl->buffer_from_wl_eglstream(renderer, resource, attribs);
+}
+
