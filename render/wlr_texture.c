@@ -71,6 +71,14 @@ struct wlr_texture *wlr_texture_from_buffer(struct wlr_renderer *renderer,
 	return renderer->impl->texture_from_buffer(renderer, buffer);
 }
 
+struct wlr_buffer *wlr_buffer_from_wl_eglstream(struct wlr_renderer *renderer,
+	struct wl_resource *resource, struct wl_array *attribs) {
+	if (!renderer->impl->buffer_from_wl_eglstream) {
+		return NULL;
+	}
+	return renderer->impl->buffer_from_wl_eglstream(renderer, resource, attribs);
+}
+
 bool wlr_texture_write_pixels(struct wlr_texture *texture,
 		uint32_t stride, uint32_t width, uint32_t height,
 		uint32_t src_x, uint32_t src_y, uint32_t dst_x, uint32_t dst_y,

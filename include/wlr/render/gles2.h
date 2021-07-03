@@ -31,6 +31,7 @@ struct wlr_gles2_texture_attribs {
 	GLuint tex;
 
 	bool has_alpha;
+	bool inverted_y;
 };
 
 bool wlr_renderer_is_gles2(struct wlr_renderer *wlr_renderer);

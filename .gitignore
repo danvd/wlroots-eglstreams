@@ -1,1 +1,16 @@
 /subprojects/
+.clang_complete
+*.o
+*.a
+bin/
+test/
+build/
+build-*/
+wayland-*-protocol.*
+wlr-example.ini
+.cache/
+.vscode/
+compile_commands.json
+*.c~
+*.h~
+
