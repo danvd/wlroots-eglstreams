@@ -12,6 +12,7 @@ wlr_files += files(
 	'swapchain.c',
 	'wlr_renderer.c',
 	'wlr_texture.c',
+	'eglstreams_allocator.c',
 )
 
 egl = dependency('egl', required: 'gles2' in renderers)

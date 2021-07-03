@@ -14,6 +14,7 @@
 #include "render/drm_format_set.h"
 #include "render/wlr_renderer.h"
 #include "util/signal.h"
+#include "backend/drm/drm.h"
 
 struct wlr_headless_backend *headless_backend_from_backend(
 		struct wlr_backend *wlr_backend) {

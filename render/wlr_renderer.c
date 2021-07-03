@@ -20,6 +20,10 @@
 #include "util/signal.h"
 #include "render/pixel_format.h"
 #include "render/wlr_renderer.h"
+#include "backend/drm/drm.h"
+
+
+#include <unistd.h>
 
 void wlr_renderer_init(struct wlr_renderer *renderer,
 		const struct wlr_renderer_impl *impl) {
@@ -38,6 +42,13 @@ void wlr_renderer_init(struct wlr_renderer *renderer,
 void wlr_renderer_destroy(struct wlr_renderer *r) {
 	if (!r) {
 		return;
+	}
+
+	struct wlr_egl *egl = r->impl->get_egl(r);
+
+	if (egl->procs.eglUnbindWaylandDisplayWL && egl->wl_display) {
+		egl->procs.eglUnbindWaylandDisplayWL(egl->display,
+				egl->wl_display);
 	}
 
 	assert(!r->rendering);
@@ -207,7 +218,9 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 		return false;
 	}
 
-	bool argb8888 = false, xrgb8888 = false;
+	bool is_eglstreams = drm_is_eglstreams(wlr_renderer_get_drm_fd(r));
+	
+	bool argb8888 = is_eglstreams, xrgb8888 = is_eglstreams;
 	for (size_t i = 0; i < len; ++i) {
 		// ARGB8888 and XRGB8888 must be supported and are implicitly
 		// advertised by wl_display_init_shm
@@ -225,6 +238,7 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 	}
 	assert(argb8888 && xrgb8888);
 
+	struct wlr_egl *egl = wlr_renderer_get_egl(r);
 	if (wlr_renderer_get_dmabuf_texture_formats(r) != NULL) {
 		if (wlr_renderer_get_drm_fd(r) >= 0) {
 			if (wlr_drm_create(wl_display, r) == NULL) {
@@ -234,9 +248,22 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 			wlr_log(WLR_INFO, "Cannot get renderer DRM FD, disabling wl_drm");
 		}
 
-		if (wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
+		// Disable all dma-buf functionality for EGLStreams.
+		// TODO: Enable when nvidia driver is ready for gbm.
+		if (!drm_is_eglstreams(wlr_renderer_get_drm_fd(r)) &&
+			egl->exts.EXT_image_dma_buf_import &&
+			wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
 			return false;
 		}
+	}
+
+	if (egl->procs.eglBindWaylandDisplayWL) {
+		egl->procs.eglBindWaylandDisplayWL(egl->display, wl_display);
+		egl->wl_display = wl_display;
+	}
+
+	if (drm_is_eglstreams(wlr_renderer_get_drm_fd(r))) {
+		init_eglstream_controller(wl_display);
 	}
 
 	return true;
@@ -299,3 +326,11 @@ int wlr_renderer_get_drm_fd(struct wlr_renderer *r) {
 	}
 	return r->impl->get_drm_fd(r);
 }
+
+struct wlr_egl *wlr_renderer_get_egl(struct wlr_renderer *r) {
+	if (!r->impl->get_egl) {
+		return NULL;
+	}
+	return r->impl->get_egl(r);
+} 
+

@@ -40,4 +40,6 @@ typedef struct _drmModeModeInfo drmModeModeInfo;
 struct wlr_output_mode *wlr_drm_connector_add_mode(struct wlr_output *output,
 	const drmModeModeInfo *mode);
 
+bool wlr_output_is_eglstreams(struct wlr_output *output);
+
 #endif

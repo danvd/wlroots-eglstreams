@@ -330,12 +330,14 @@ static void xdg_surface_handle_surface_commit(struct wl_listener *listener,
 	struct wlr_xdg_surface *surface =
 		wl_container_of(listener, surface, surface_commit);
 
+#ifndef WLR_RELAXED_CLIENT_HANDLING
 	if (wlr_surface_has_buffer(surface->surface) && !surface->configured) {
 		wl_resource_post_error(surface->resource,
 			XDG_SURFACE_ERROR_UNCONFIGURED_BUFFER,
 			"xdg_surface has never been configured");
 		return;
 	}
+#endif
 
 	// surface->role might be NONE for inert popups
 	// So we check surface->surface->role
@@ -434,7 +436,7 @@ struct wlr_xdg_surface *create_xdg_surface(
 		wl_client_post_no_memory(client->client);
 		return NULL;
 	}
-
+#ifndef WLR_RELAXED_CLIENT_HANDLING
 	if (wlr_surface_has_buffer(xdg_surface->surface)) {
 		wl_resource_destroy(xdg_surface->resource);
 		free(xdg_surface);
@@ -443,6 +445,7 @@ struct wlr_xdg_surface *create_xdg_surface(
 			"xdg_surface must not have a buffer at creation");
 		return NULL;
 	}
+#endif
 
 	wl_list_init(&xdg_surface->configure_list);
 	wl_list_init(&xdg_surface->popups);

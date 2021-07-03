@@ -23,6 +23,7 @@
 #include "render/wlr_renderer.h"
 #include "util/global.h"
 #include "util/signal.h"
+#include "backend/drm/drm.h"
 
 #define OUTPUT_VERSION 3
 
@@ -527,8 +528,14 @@ static bool output_create_swapchain(struct wlr_output *output,
 		format->len = 0;
 	}
 
+	void *backend_data = NULL;
+	if (wlr_output_is_eglstreams(output)) {
+		struct wlr_drm_connector *conn = (struct wlr_drm_connector *)output;
+		backend_data = (void *)(unsigned long)conn->crtc->primary->id;
+	}
+
 	struct wlr_swapchain *swapchain =
-		wlr_swapchain_create(allocator, width, height, format);
+		wlr_swapchain_create(allocator, width, height, format, backend_data);
 	free(format);
 	if (swapchain == NULL) {
 		wlr_log(WLR_ERROR, "Failed to create output swapchain");
@@ -731,6 +738,11 @@ static bool output_basic_test(struct wlr_output *output) {
 		}
 
 		if (output->back_buffer == NULL) {
+			if(wlr_output_is_eglstreams(output))  {
+				wlr_log(WLR_DEBUG, "Direct scan-out disabled for eglstreams backend");
+				return false;
+			}
+
 			if (output->attach_render_locks > 0) {
 				wlr_log(WLR_DEBUG, "Direct scan-out disabled by lock");
 				return false;
@@ -1366,8 +1378,15 @@ static struct wlr_buffer *render_cursor_buffer(struct wlr_output_cursor *cursor)
 		}
 
 		wlr_swapchain_destroy(output->cursor_swapchain);
+
+		void *backend_data = NULL;
+		if (wlr_output_is_eglstreams(output)) {
+			struct wlr_drm_connector *conn = (struct wlr_drm_connector *)output;
+			backend_data = (void *)(unsigned long)conn->crtc->cursor->id;
+		}
+
 		output->cursor_swapchain = wlr_swapchain_create(allocator,
-			width, height, format);
+			width, height, format, backend_data);
 		if (output->cursor_swapchain == NULL) {
 			wlr_log(WLR_ERROR, "Failed to create cursor swapchain");
 			return NULL;
