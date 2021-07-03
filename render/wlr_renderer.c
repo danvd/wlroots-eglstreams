@@ -29,6 +29,7 @@
 #include "util/signal.h"
 #include "render/pixel_format.h"
 #include "render/wlr_renderer.h"
+#include "backend/drm/drm.h"
 
 void wlr_renderer_init(struct wlr_renderer *renderer,
 		const struct wlr_renderer_impl *impl) {
@@ -48,6 +49,15 @@ void wlr_renderer_destroy(struct wlr_renderer *r) {
 	if (!r) {
 		return;
 	}
+
+#if WLR_HAS_GLES2_RENDERER
+	struct wlr_egl *egl = wlr_gles2_renderer_get_egl(r);
+
+	if (egl->procs.eglUnbindWaylandDisplayWL && egl->wl_display) {
+		egl->procs.eglUnbindWaylandDisplayWL(egl->display,
+				egl->wl_display);
+	}
+#endif
 
 	assert(!r->rendering);
 
@@ -204,6 +214,17 @@ bool wlr_renderer_read_pixels(struct wlr_renderer *r, uint32_t fmt,
 
 bool wlr_renderer_init_wl_shm(struct wlr_renderer *r,
 		struct wl_display *wl_display) {
+
+	if (drm_is_eglstreams(wlr_renderer_get_drm_fd(r))) {
+		wlr_log(WLR_INFO, "EGLStreams: binding wl_disply to EGL and initializing eglstream controller...");
+		struct wlr_egl *egl = wlr_gles2_renderer_get_egl(r);
+		assert(egl->procs.eglBindWaylandDisplayWL);
+		EGLBoolean res = egl->procs.eglBindWaylandDisplayWL(egl->display, wl_display);
+		egl->wl_display = wl_display;
+		assert(res == EGL_TRUE);
+		init_eglstream_controller(wl_display);
+	}
+
 	if (wl_display_init_shm(wl_display) != 0) {
 		wlr_log(WLR_ERROR, "Failed to initialize wl_shm");
 		return false;
@@ -217,7 +238,9 @@ bool wlr_renderer_init_wl_shm(struct wlr_renderer *r,
 		return false;
 	}
 
-	bool argb8888 = false, xrgb8888 = false;
+	bool is_eglstreams = drm_is_eglstreams(wlr_renderer_get_drm_fd(r));
+	
+	bool argb8888 = is_eglstreams, xrgb8888 = is_eglstreams;
 	for (size_t i = 0; i < len; ++i) {
 		// ARGB8888 and XRGB8888 must be supported and are implicitly
 		// advertised by wl_display_init_shm
@@ -256,8 +279,8 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 		} else {
 			wlr_log(WLR_INFO, "Cannot get renderer DRM FD, disabling wl_drm");
 		}
-
-		if (wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
+		if (!drm_is_eglstreams(wlr_renderer_get_drm_fd(r)) &&
+			wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
 			return false;
 		}
 	}

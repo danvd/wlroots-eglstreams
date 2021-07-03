@@ -160,6 +160,9 @@ struct wlr_surface {
 		int width, height;
 		int buffer_width, buffer_height;
 	} previous;
+
+	// To handle transform y flipping
+	bool is_eglstream;
 };
 
 /**

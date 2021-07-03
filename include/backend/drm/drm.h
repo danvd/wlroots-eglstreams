@@ -87,6 +87,8 @@ struct wlr_drm_backend {
 	uint64_t cursor_width, cursor_height;
 
 	struct wlr_drm_format_set mgpu_formats;
+
+	bool is_eglstreams;
 };
 
 enum wlr_drm_connector_status {
@@ -161,6 +163,8 @@ size_t drm_crtc_get_gamma_lut_size(struct wlr_drm_backend *drm,
 void drm_lease_destroy(struct wlr_drm_lease *lease);
 
 struct wlr_drm_fb *plane_get_next_fb(struct wlr_drm_plane *plane);
+
+bool drm_is_eglstreams(int drm_fd);
 
 #define wlr_drm_conn_log(conn, verb, fmt, ...) \
 	wlr_log(verb, "connector %s: " fmt, conn->name, ##__VA_ARGS__)

@@ -24,6 +24,8 @@ add_project_arguments([
 	'-DWLR_USE_UNSTABLE',
 	'-DWLR_LITTLE_ENDIAN=@0@'.format(little_endian.to_int()),
 	'-DWLR_BIG_ENDIAN=@0@'.format(big_endian.to_int()),
+	# Allow clients to die on their own, be not so strict
+	'-DWLR_RELAXED_CLIENT_HANDLING'
 ], language: 'c')
 
 cc = meson.get_compiler('c')
@@ -131,6 +133,7 @@ udev = dependency('libudev')
 pixman = dependency('pixman-1')
 math = cc.find_library('m')
 rt = cc.find_library('rt')
+dlfcn = cc.find_library('dl') # for libnvidia-egl-wayland.so.1 dynamic loading
 
 wlr_files = []
 wlr_deps = [
@@ -142,6 +145,7 @@ wlr_deps = [
 	pixman,
 	math,
 	rt,
+	dlfcn
 ]
 
 subdir('protocol')

@@ -44,7 +44,7 @@ static void surface_handle_attach(struct wl_client *client,
 
 	struct wlr_buffer *buffer = NULL;
 	if (buffer_resource != NULL) {
-		buffer = wlr_buffer_from_resource(buffer_resource);
+		buffer = wlr_buffer_from_resource(buffer_resource, surface->renderer);
 		if (buffer == NULL) {
 			wl_resource_post_error(buffer_resource, 0, "unknown buffer type");
 			return;
@@ -759,6 +759,8 @@ struct wlr_surface *surface_create(struct wl_client *client,
 
 	wl_signal_add(&renderer->events.destroy, &surface->renderer_destroy);
 	surface->renderer_destroy.notify = surface_handle_renderer_destroy;
+
+	surface->is_eglstream = false;
 
 	return surface;
 }

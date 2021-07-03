@@ -18,7 +18,8 @@ struct wlr_renderer;
 
 struct wlr_allocator_interface {
 	struct wlr_buffer *(*create_buffer)(struct wlr_allocator *alloc,
-		int width, int height, const struct wlr_drm_format *format);
+		int width, int height, const struct wlr_drm_format *format,
+		void *data);
 	void (*destroy)(struct wlr_allocator *alloc);
 };
 
@@ -65,6 +66,6 @@ void wlr_allocator_destroy(struct wlr_allocator *alloc);
  * unless the user has allowed it by passing INVALID in the modifier list.
  */
 struct wlr_buffer *wlr_allocator_create_buffer(struct wlr_allocator *alloc,
-	int width, int height, const struct wlr_drm_format *format);
+	int width, int height, const struct wlr_drm_format *format, void *data);
 
 #endif

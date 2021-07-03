@@ -12,6 +12,7 @@
 #include "render/drm_format_set.h"
 #include "util/signal.h"
 #include "util/shm.h"
+#include "backend/drm/drm.h"
 
 #define LINUX_DMABUF_VERSION 4
 
@@ -940,6 +941,10 @@ static void handle_renderer_destroy(struct wl_listener *listener, void *data) {
 
 struct wlr_linux_dmabuf_v1 *wlr_linux_dmabuf_v1_create(struct wl_display *display,
 		struct wlr_renderer *renderer) {
+	// Disable all dma-buf functionality for EGLStreams.
+	if (drm_is_eglstreams(wlr_renderer_get_drm_fd(renderer))) {
+		return NULL;
+	}
 	struct wlr_linux_dmabuf_v1 *linux_dmabuf =
 		calloc(1, sizeof(struct wlr_linux_dmabuf_v1));
 	if (linux_dmabuf == NULL) {

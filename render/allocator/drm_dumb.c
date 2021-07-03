@@ -172,7 +172,9 @@ static struct wlr_drm_dumb_allocator *drm_dumb_alloc_from_alloc(
 
 static struct wlr_buffer *allocator_create_buffer(
 		struct wlr_allocator *wlr_alloc, int width, int height,
-		const struct wlr_drm_format *drm_format) {
+		const struct wlr_drm_format *drm_format,
+		void *data) {
+	(void)data;
 	struct wlr_drm_dumb_allocator *alloc = drm_dumb_alloc_from_alloc(wlr_alloc);
 	struct wlr_drm_dumb_buffer *buffer = create_buffer(alloc, width, height,
 			drm_format);

@@ -71,6 +71,7 @@ wlr_files += files(
 	'sockets.c',
 	'xwayland.c',
 	'xwm.c',
+	'xwayland_keyboard_grab_unstable.c',
 )
 wlr_deps += xwayland_libs
 features += { 'xwayland': true }

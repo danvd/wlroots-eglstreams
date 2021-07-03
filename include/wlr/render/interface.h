@@ -48,6 +48,9 @@ struct wlr_renderer_impl {
 	uint32_t (*get_render_buffer_caps)(struct wlr_renderer *renderer);
 	struct wlr_texture *(*texture_from_buffer)(struct wlr_renderer *renderer,
 		struct wlr_buffer *buffer);
+	struct wlr_texture *(*texture_from_wl_eglstream)(struct wlr_buffer *buffer);
+	struct wlr_buffer *(*buffer_from_wl_eglstream)(struct wlr_renderer *renderer,
+		struct wl_resource *resource, struct wl_array *attribs);
 };
 
 void wlr_renderer_init(struct wlr_renderer *renderer,

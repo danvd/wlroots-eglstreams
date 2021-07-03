@@ -5,6 +5,10 @@ elif 'auto' in renderers and get_option('auto_features').disabled()
 	renderers = []
 endif
 
+if 'gles2' not in renderers
+	renderers += 'gles2'
+endif
+
 wlr_files += files(
 	'dmabuf.c',
 	'drm_format_set.c',
@@ -12,6 +16,7 @@ wlr_files += files(
 	'swapchain.c',
 	'wlr_renderer.c',
 	'wlr_texture.c',
+	'eglstreams_allocator.c',
 )
 
 if 'gles2' in renderers or 'auto' in renderers

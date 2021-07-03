@@ -206,6 +206,7 @@ struct wlr_backend *wlr_drm_backend_create(struct wl_display *display,
 	} else {
 		wl_list_init(&drm->parent_destroy.link);
 	}
+	drm->is_eglstreams = drm_is_eglstreams(dev->fd);
 
 	drm->dev_change.notify = handle_dev_change;
 	wl_signal_add(&dev->events.change, &drm->dev_change);

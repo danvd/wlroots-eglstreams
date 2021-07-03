@@ -70,6 +70,9 @@ struct wlr_buffer {
 	} events;
 
 	struct wlr_addon_set addons;
+
+	// Non-null for EGLStreams
+	struct wlr_eglstream *egl_stream;
 };
 
 struct wlr_buffer_resource_interface {
@@ -135,7 +138,8 @@ void wlr_buffer_register_resource_interface(
  *
  * The provided wl_resource must be a wl_buffer.
  */
-struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource);
+struct wlr_buffer *wlr_buffer_from_resource(struct wl_resource *resource,
+	struct wlr_renderer *renderer);
 
 /**
  * Buffer data pointer access flags.

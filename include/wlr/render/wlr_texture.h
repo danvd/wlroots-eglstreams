@@ -43,6 +43,17 @@ struct wlr_texture *wlr_texture_from_dmabuf(struct wlr_renderer *renderer,
 	struct wlr_dmabuf_attributes *attribs);
 
 /**
+ * Create a new buffer texture from a EGLSTREAM_WL resource. The returned texture is
+ * immutable.
+ *
+ * Should not be called in a rendering block like renderer_begin()/end() or
+ * between attaching a renderer to an output and committing it.
+ */
+struct wlr_buffer;
+struct wlr_buffer *wlr_buffer_from_wl_eglstream(struct wlr_renderer *renderer,
+	struct wl_resource *resource, struct wl_array *attribs);
+
+/**
  * Returns true if this texture is using a fully opaque format.
  */
 bool wlr_texture_is_opaque(struct wlr_texture *texture);

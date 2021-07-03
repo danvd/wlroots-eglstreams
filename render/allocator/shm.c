@@ -55,7 +55,8 @@ static const struct wlr_buffer_impl buffer_impl = {
 
 static struct wlr_buffer *allocator_create_buffer(
 		struct wlr_allocator *wlr_allocator, int width, int height,
-		const struct wlr_drm_format *format) {
+		const struct wlr_drm_format *format, void * data) {
+	(void)data;
 	const struct wlr_pixel_format_info *info =
 		drm_get_pixel_format_info(format->format);
 	if (info == NULL) {

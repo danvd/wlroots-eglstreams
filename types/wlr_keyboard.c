@@ -11,6 +11,10 @@
 #include "util/array.h"
 #include "util/shm.h"
 #include "util/signal.h"
+#include "types/wlr_seat.h"
+#include "xwayland/xwayland_keyboard_grab_unstable.h"
+
+extern struct xwayland_keyboard_grab_manager *xwayland_keyboard_grab_manager;
 
 void keyboard_led_update(struct wlr_keyboard *keyboard) {
 	if (keyboard->xkb_state == NULL) {
@@ -92,8 +96,33 @@ void wlr_keyboard_notify_modifiers(struct wlr_keyboard *keyboard,
 
 void wlr_keyboard_notify_key(struct wlr_keyboard *keyboard,
 		struct wlr_event_keyboard_key *event) {
+
+	bool notify = true;
+
+	if (xwayland_keyboard_grab_manager && xwayland_keyboard_grab_manager->active_client
+		&& xwayland_keyboard_grab_manager->active_seat) {
+		// TODO(danvd): All of this must be probably implemented in a more proper way...
+		struct wlr_seat_client *wlr_client =
+			wlr_seat_client_from_resource(xwayland_keyboard_grab_manager->active_seat);
+		uint32_t serial = wlr_seat_client_next_serial(wlr_client);
+		wlr_log(WLR_DEBUG,
+			"Passing keyboard to Xwayland client due to active grab: "
+			"key: %d, state: %d, serial: %d, client: %p",
+			event->keycode, event->state, serial, wlr_client->client);
+		struct wl_resource *resource, *tmp;
+		wl_resource_for_each_safe(resource, tmp, &wlr_client->keyboards) {
+			wl_keyboard_send_key(resource, serial, event->time_msec,
+				event->keycode, event->state);
+
+		}
+		notify = false;
+	}
+
 	keyboard_key_update(keyboard, event);
-	wlr_signal_emit_safe(&keyboard->events.key, event);
+
+	if (notify) {
+		wlr_signal_emit_safe(&keyboard->events.key, event);
+	}
 
 	if (keyboard->xkb_state == NULL) {
 		return;

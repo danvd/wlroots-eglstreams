@@ -1,4 +1,43 @@
-# wlroots
+# wlroots-eglstreams - NVidia EGLStreams support for popular wayland compositor library!
+
+Supported:
+```
+Add EGLStreams support for DRM backend
+
+Supported:
+1. Damage tracking
+2. EGLStreams buffer allocator
+3. VT switching, sleep/wakeup restoring
+4. Client's wayland GL texture import
+5. Multi-out
+
+Known issues
+1. Absence of Multi-GPU support. Due to lack of dma-buf (Nvidia's WIP)
+2. mpv works with `-vo gpu` only with --opengl-es=yes
+
+Note: All dma-buf extensions are disabled for EGLStreams mode.
+Else chrome/chromium and other apps relying on them fail to start.
+
+TIP: run mozilla with MOZ_ENABLE_WAYLAND=1 and MOZ_WEBRENDER=0,
+chrome with --enable-features=UseOzonePlatform --ozone-platform=wayland.
+
+This repo also contains implementation of xwayland_keyboard_grab_unstable_v1 protocol.
+
+```
+---
+**NOTE**
+This repo is to be constantly rebased upon original wlroots.
+Be sure before a rebuild to update your local copy
+either by recloning or:
+```
+cd wlroots-eglstreams
+git fetch
+git reset --hard origin/master
+```
+Rebuild and reinstall sway if using it.
+
+---
+
 
 Pluggable, composable, unopinionated modules for building a [Wayland]
 compositor; or about 60,000 lines of code you were going to write anyway.
@@ -28,9 +67,6 @@ compatibility, broad support for many wayland interfaces, and comfortable
 development tools - or any subset of these features you like, because all of
 them work independently of one another and freely compose with anything you want
 to implement yourself.
-
-Check out our [wiki] to get started with wlroots. Join our IRC channel:
-[#sway-devel on Libera Chat].
 
 wlroots is developed under the direction of the [sway] project. A variety of
 [wrapper libraries] are available for using it with your favorite programming
@@ -76,7 +112,6 @@ See [CONTRIBUTING.md].
 
 [Wayland]: https://wayland.freedesktop.org/
 [wiki]: https://gitlab.freedesktop.org/wlroots/wlroots/-/wikis/Getting-started
-[#sway-devel on Libera Chat]: https://web.libera.chat/gamja/?channels=#sway-devel
 [Sway]: https://github.com/swaywm/sway
 [wrapper libraries]: https://gitlab.freedesktop.org/wlroots/wlroots/-/wikis/Projects-which-use-wlroots#wrapper-libraries
 [libseat]: https://git.sr.ht/~kennylevinsen/seatd

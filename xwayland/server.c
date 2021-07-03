@@ -53,6 +53,7 @@ noreturn static void exec_xwayland(struct wlr_xwayland_server *server) {
 	argv[i++] = "-rootless";
 	argv[i++] = "-terminate";
 	argv[i++] = "-core";
+	argv[i++] = "-eglstream";
 
 #if HAVE_XWAYLAND_LISTENFD
 	argv[i++] = "-listenfd";

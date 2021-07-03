@@ -18,6 +18,7 @@
 
 struct wlr_xwm;
 struct wlr_xwayland_cursor;
+struct xwayland_keyboard_grab_manager;
 
 struct wlr_xwayland_server_options {
 	bool lazy;
@@ -88,6 +89,8 @@ struct wlr_xwayland {
 	struct wl_listener seat_destroy;
 
 	void *data;
+
+	struct xwayland_keyboard_grab_manager *keyboard_grab_manager;
 };
 
 enum wlr_xwayland_surface_decorations {

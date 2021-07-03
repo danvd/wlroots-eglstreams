@@ -11,6 +11,7 @@
 #include "render/wlr_renderer.h"
 #include "render/pixel_format.h"
 #include "types/wlr_output.h"
+#include "backend/drm/drm.h"
 
 bool wlr_output_init_render(struct wlr_output *output,
 		struct wlr_allocator *allocator, struct wlr_renderer *renderer) {
@@ -84,8 +85,14 @@ static bool output_create_swapchain(struct wlr_output *output,
 		wlr_drm_format_add(&format, DRM_FORMAT_MOD_INVALID);
 	}
 
+	void *plane_id = NULL;
+
+	if (wlr_output_is_drm(output)) {
+		plane_id = (void *)(long)((struct wlr_drm_connector *)output)->crtc->primary->id;
+	}
+
 	struct wlr_swapchain *swapchain =
-		wlr_swapchain_create(allocator, width, height, format);
+		wlr_swapchain_create(allocator, width, height, format, plane_id);
 	free(format);
 	if (swapchain == NULL) {
 		wlr_log(WLR_ERROR, "Failed to create output swapchain");

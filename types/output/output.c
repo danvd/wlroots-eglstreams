@@ -12,6 +12,7 @@
 #include "types/wlr_output.h"
 #include "util/global.h"
 #include "util/signal.h"
+#include "backend/drm/drm.h"
 
 #define OUTPUT_VERSION 4
 
@@ -557,6 +558,10 @@ static bool output_basic_test(struct wlr_output *output) {
 			if (output->attach_render_locks > 0) {
 				wlr_log(WLR_DEBUG, "Direct scan-out disabled by lock");
 				return false;
+			}
+
+			if(wlr_backend_is_drm(output->backend)) {
+				return !((struct wlr_drm_backend *)output->backend)->is_eglstreams;
 			}
 
 			// If the output has at least one software cursor, refuse to attach the
