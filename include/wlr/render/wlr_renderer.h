@@ -118,4 +118,9 @@ int wlr_renderer_get_drm_fd(struct wlr_renderer *r);
  */
 void wlr_renderer_destroy(struct wlr_renderer *renderer);
 
+/**
+ * Gets underlying wlr_egl if defined.
+ */
+struct wlr_egl *wlr_renderer_get_egl(struct wlr_renderer *renderer);
+
 #endif

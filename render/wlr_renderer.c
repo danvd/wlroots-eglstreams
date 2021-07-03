@@ -289,3 +289,11 @@ int wlr_renderer_get_drm_fd(struct wlr_renderer *r) {
 	}
 	return r->impl->get_drm_fd(r);
 }
+
+struct wlr_egl *wlr_renderer_get_egl(struct wlr_renderer *r) {
+	if (!r->impl->get_egl) {
+		return NULL;
+	}
+	return r->impl->get_egl(r);
+} 
+

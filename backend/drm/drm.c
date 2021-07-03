@@ -38,6 +38,9 @@ static const uint32_t SUPPORTED_OUTPUT_STATE =
 	WLR_OUTPUT_STATE_ENABLED |
 	WLR_OUTPUT_STATE_GAMMA_LUT;
 
+static void handle_page_flip(int fd, unsigned seq,
+		unsigned tv_sec, unsigned tv_usec, unsigned crtc_id, void *data);
+
 bool check_drm_features(struct wlr_drm_backend *drm) {
 	if (drmGetCap(drm->fd, DRM_CAP_CURSOR_WIDTH, &drm->cursor_width)) {
 		drm->cursor_width = 64;
@@ -214,6 +217,12 @@ static bool init_planes(struct wlr_drm_backend *drm) {
 			continue;
 		}
 
+		// HW cursors are not supported for EGLStreams
+		if (drm->is_eglstreams && type == DRM_PLANE_TYPE_CURSOR) {
+			drmModeFreePlane(plane);
+			continue;
+		}
+
 		assert(drm->num_crtcs <= 32);
 		struct wlr_drm_crtc *crtc = NULL;
 		for (size_t j = 0; j < drm->num_crtcs ; j++) {
@@ -351,7 +360,14 @@ static bool drm_crtc_commit(struct wlr_drm_connector *conn,
 
 	struct wlr_drm_backend *drm = conn->backend;
 	struct wlr_drm_crtc *crtc = conn->crtc;
-	bool ok = drm->iface->crtc_commit(conn, state, flags, test_only);
+
+	bool ok = drm->is_eglstreams && !drm_connector_state_is_modeset(state);
+	if (!ok) {
+		ok = drm->iface->crtc_commit(conn, state, flags, test_only);
+	} else if (drm->is_eglstreams && (flags & DRM_MODE_PAGE_FLIP_EVENT)) {
+		wlr_egl_flip_eglstreams_page(&conn->output);
+	}
+
 	if (ok && !test_only) {
 		drm_plane_set_committed(crtc->primary);
 		if (crtc->cursor != NULL) {
@@ -419,6 +435,9 @@ static bool drm_connector_set_pending_fb(struct wlr_drm_connector *conn,
 		}
 		break;
 	case WLR_OUTPUT_STATE_BUFFER_SCANOUT:;
+		if (drm->is_eglstreams) {
+			return false;
+		}
 		if (!drm_fb_import(&plane->pending_fb, drm, state->buffer,
 				&crtc->primary->formats)) {
 			wlr_drm_conn_log(conn, WLR_DEBUG,
@@ -918,7 +937,7 @@ static bool drm_connector_set_cursor(struct wlr_output *output,
 			}
 
 			bool ok = init_drm_surface(&plane->mgpu_surf, &drm->renderer,
-				buffer->width, buffer->height, format);
+				buffer->width, buffer->height, format, plane);
 			free(format);
 			if (!ok) {
 				return false;
@@ -1390,6 +1409,10 @@ void scan_drm_connectors(struct wlr_drm_backend *drm) {
 
 			wlr_output_init(&wlr_conn->output, &drm->backend, &output_impl,
 				drm->display);
+			if (drm->is_eglstreams) {
+				wlr_log(WLR_INFO, "Forcing software cursors for EGLStreams mode");
+				wlr_conn->output.software_cursor_locks = 1;
+			}
 
 			memcpy(wlr_conn->output.name, wlr_conn->name,
 				sizeof(wlr_conn->output.name));
@@ -1562,11 +1585,12 @@ static void handle_page_flip(int fd, unsigned seq,
 		.tv_sec = tv_sec,
 		.tv_nsec = tv_usec * 1000,
 	};
+	/*wlr_log(WLR_INFO, "present_time: %u, %u, refresh: %d", tv_sec, tv_usec, conn->output.refresh);*/
 	struct wlr_output_event_present present_event = {
 		/* The DRM backend guarantees that the presentation event will be for
 		 * the last submitted frame. */
 		.commit_seq = conn->output.commit_seq,
-		.when = &present_time,
+		.when =  tv_sec == 0 && tv_usec == 0 ? NULL: &present_time,
 		.seq = seq,
 		.refresh = mhz_to_nsec(conn->output.refresh),
 		.flags = present_flags,
@@ -1651,4 +1675,11 @@ void destroy_drm_connector(struct wlr_drm_connector *conn) {
 	drmModeFreeCrtc(conn->old_crtc);
 	wl_list_remove(&conn->link);
 	free(conn);
+}
+
+bool drm_is_eglstreams(int drm_fd) {
+	drmVersion *version = drmGetVersion(drm_fd);
+	int is_eglstreams = strcmp(version->name, "nvidia-drm") == 0;
+	drmFreeVersion(version);
+	return is_eglstreams;
 }

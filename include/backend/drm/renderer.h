@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <wlr/backend.h>
 #include <wlr/render/wlr_renderer.h>
+#include "render/drm_format_set.h"
 
 struct wlr_drm_backend;
 struct wlr_drm_plane;
@@ -36,6 +37,9 @@ struct wlr_drm_fb {
 	struct gbm_bo *bo;
 	uint32_t id;
 
+	struct wlr_drm_backend *backend;
+	uint32_t handle;
+
 	struct wl_listener wlr_buf_destroy;
 };
 
@@ -45,7 +49,7 @@ void finish_drm_renderer(struct wlr_drm_renderer *renderer);
 
 bool init_drm_surface(struct wlr_drm_surface *surf,
 	struct wlr_drm_renderer *renderer, uint32_t width, uint32_t height,
-	const struct wlr_drm_format *drm_format);
+	const struct wlr_drm_format *drm_format, const struct wlr_drm_plane *plane);
 bool drm_surface_make_current(struct wlr_drm_surface *surf, int *buffer_age);
 void drm_surface_unset_current(struct wlr_drm_surface *surf);
 

@@ -16,6 +16,7 @@ wlr_files += files(
 	'wlr_renderer.c',
 	'wlr_texture.c',
 	'drm_dumb_allocator.c',
+	'eglstreams_allocator.c',
 )
 
 has = cc.has_function('gbm_bo_get_fd_for_plane', dependencies: [gbm])

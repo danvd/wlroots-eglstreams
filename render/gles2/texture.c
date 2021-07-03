@@ -136,9 +136,13 @@ void gles2_texture_destroy(struct wlr_gles2_texture *texture) {
 	wlr_egl_make_current(texture->renderer->egl);
 
 	push_gles2_debug(texture->renderer);
+	if (!texture->stream) {
+		glDeleteTextures(1, &texture->tex);
+	}
 
-	glDeleteTextures(1, &texture->tex);
-	wlr_egl_destroy_image(texture->renderer->egl, texture->image);
+	if (texture->image) {
+		wlr_egl_destroy_image(texture->renderer->egl, texture->image);
+	}
 
 	pop_gles2_debug(texture->renderer);
 
@@ -176,6 +180,7 @@ static struct wlr_gles2_texture *gles2_texture_create(
 	texture->renderer = renderer;
 	wl_list_insert(&renderer->textures, &texture->link);
 	wl_list_init(&texture->buffer_destroy.link);
+	texture->stream = EGL_NO_STREAM_KHR;
 	return texture;
 }
 
@@ -341,6 +346,146 @@ struct wlr_texture *gles2_texture_from_buffer(struct wlr_renderer *wlr_renderer,
 	} else {
 		return NULL;
 	}
+}
+
+static void gles2_client_egl_stream_destroy(struct wl_listener *listener, void *data) {
+	struct wlr_egl_client_stream *client_stream =
+		wl_container_of(listener, client_stream, destroy_listener);
+	struct wlr_egl_context prev_ctx;
+	struct wlr_egl *egl = client_stream->renderer->egl;
+	wlr_egl_save_context(&prev_ctx);
+	wlr_egl_make_current(client_stream->renderer->egl);
+	egl->procs.eglDestroyStreamKHR(egl->display, client_stream->stream);
+	glDeleteTextures(1, &client_stream->tex);
+	wlr_egl_restore_context(&prev_ctx);
+	wl_list_remove(&client_stream->destroy_listener.link);
+	wl_list_remove(&client_stream->link);
+	free(client_stream);
+}
+
+struct wlr_texture *gles2_texture_from_wl_eglstream(struct wlr_renderer *wlr_renderer,
+		struct wl_resource *resource) {
+	int width, height;
+	EGLint inverted_y;
+	if (!wlr_egl_wl_buffer_get_params(gles2_renderer_get_egl(wlr_renderer), resource,
+				&width, &height, &inverted_y)) {
+		return NULL;
+	}
+
+	struct wlr_egl_context prev_ctx;
+	struct wlr_gles2_renderer *renderer = gles2_get_renderer(wlr_renderer);
+	struct wlr_egl *egl = renderer->egl;
+	wlr_egl_save_context(&prev_ctx);
+	wlr_egl_make_current(renderer->egl);
+	EGLAttrib stream_attribs[] = {
+		EGL_WAYLAND_EGLSTREAM_WL, (EGLAttrib)resource,
+		EGL_NONE
+	};
+
+	EGLStreamKHR stream = EGL_NO_STREAM_KHR;
+
+	struct wlr_egl_client_stream *attached_stream = NULL;
+	struct wlr_egl_client_stream *tmp;
+	wl_list_for_each(tmp, &renderer->client_streams, link) {
+		if (tmp->resource == resource) {
+			attached_stream = tmp;
+			break;
+		}
+	}
+
+	if (attached_stream) {
+		stream = attached_stream->stream;
+	} else {
+		stream = egl->procs.eglCreateStreamAttribNV(
+				egl->display, stream_attribs);
+	}
+
+	if (stream == EGL_NO_STREAM_KHR) {
+		goto error_ctx;
+	}
+
+	struct wlr_gles2_texture *texture =
+		gles2_texture_create(renderer, width, height);
+	if (texture == NULL) {
+		wlr_log(WLR_ERROR, "Texture allocation failed");
+		goto error_stream;
+	}
+	texture->renderer = renderer;
+
+	texture->drm_format = DRM_FORMAT_INVALID;
+	texture->image = NULL;
+	texture->stream = stream;
+	texture->inverted_y = !!!inverted_y;
+	texture->has_alpha = true;
+	texture->target = GL_TEXTURE_EXTERNAL_OES;
+
+	push_gles2_debug(renderer);
+
+	bool ok = false;
+	if (attached_stream) {
+		texture->tex = attached_stream->tex;
+		ok = true;
+		if (attached_stream->acquired) {
+			egl->procs.eglStreamConsumerReleaseKHR(
+				egl->display, attached_stream->stream);
+		}
+	} else {
+		glGenTextures(1, &texture->tex);
+		glBindTexture(texture->target, texture->tex);
+		glTexParameteri(texture->target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(texture->target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		if(egl->procs.eglStreamConsumerGLTextureExternalKHR(
+				egl->display, stream) == EGL_TRUE) {
+			attached_stream = calloc(1, sizeof(*attached_stream));
+			if (attached_stream) {
+				attached_stream->renderer = renderer;
+				attached_stream->stream = stream;
+				attached_stream->acquired = false;
+				attached_stream->resource = resource;
+				attached_stream->tex = texture->tex;
+				attached_stream->destroy_listener.notify =
+					gles2_client_egl_stream_destroy;
+				wl_resource_add_destroy_listener(resource,
+						&attached_stream->destroy_listener);
+				wl_list_insert(&renderer->client_streams,
+						&attached_stream->link);
+				ok = true;
+			}
+		}
+		glBindTexture(texture->target, 0);
+
+		if (!ok) {
+			goto error_texture;
+		}
+	}
+
+	if (ok) {
+		egl->procs.eglStreamFlushNV(egl->display, stream);
+		attached_stream->acquired =
+			egl->procs.eglStreamConsumerAcquireAttribNV(egl->display, stream, NULL) == EGL_TRUE;
+	}
+
+
+	pop_gles2_debug(renderer);
+	wlr_egl_restore_context(&prev_ctx);
+
+	if (!ok) {
+		wlr_log(WLR_ERROR, "Could not bind EGLStream to GL texture");
+		goto error_texture;
+	}
+
+	return &texture->wlr_texture;
+
+error_texture:
+	wl_list_remove(&texture->link);
+	glDeleteTextures(1, &texture->tex);
+	free(texture);
+error_stream:
+	egl->procs.eglDestroyStreamKHR(
+		egl->display, stream);
+error_ctx:
+	wlr_egl_restore_context(&prev_ctx);
+	return NULL;
 }
 
 void wlr_gles2_texture_get_attribs(struct wlr_texture *wlr_texture,

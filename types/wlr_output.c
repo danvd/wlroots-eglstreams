@@ -23,6 +23,7 @@
 #include "render/wlr_renderer.h"
 #include "util/global.h"
 #include "util/signal.h"
+#include "backend/drm/drm.h"
 
 #define OUTPUT_VERSION 3
 
@@ -506,7 +507,7 @@ static bool output_create_swapchain(struct wlr_output *output) {
 		format->format, output->name);
 
 	output->swapchain = wlr_swapchain_create(allocator, output->width,
-		output->height, format);
+		output->height, format, NULL);
 	free(format);
 	if (output->swapchain == NULL) {
 		wlr_log(WLR_ERROR, "Failed to create output swapchain");
@@ -1261,7 +1262,7 @@ static struct wlr_buffer *render_cursor_buffer(struct wlr_output_cursor *cursor)
 
 		wlr_swapchain_destroy(output->cursor_swapchain);
 		output->cursor_swapchain = wlr_swapchain_create(allocator,
-			width, height, format);
+			width, height, format, NULL);
 		if (output->cursor_swapchain == NULL) {
 			wlr_log(WLR_ERROR, "Failed to create cursor swapchain");
 			return NULL;

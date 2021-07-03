@@ -19,6 +19,7 @@ void wlr_buffer_init(struct wlr_buffer *buffer,
 	buffer->impl = impl;
 	buffer->width = width;
 	buffer->height = height;
+	buffer->egl_stream = NULL;
 	wl_signal_init(&buffer->events.destroy);
 	wl_signal_init(&buffer->events.release);
 }
@@ -198,7 +199,8 @@ struct wlr_client_buffer *wlr_client_buffer_import(
 		struct wlr_renderer *renderer, struct wl_resource *resource) {
 	assert(wlr_resource_is_buffer(resource));
 
-	struct wlr_buffer *buffer;
+	struct wlr_texture *texture = NULL;
+	struct wlr_buffer *buffer = NULL;
 	if (wl_shm_buffer_get(resource) != NULL) {
 		struct wlr_shm_client_buffer *shm_client_buffer =
 			shm_client_buffer_create(resource);
@@ -218,6 +220,8 @@ struct wlr_client_buffer *wlr_client_buffer_import(
 		struct wlr_drm_buffer *drm_buffer =
 			wlr_drm_buffer_from_resource(resource);
 		buffer = wlr_buffer_lock(&drm_buffer->base);
+	} else if ((texture = wlr_texture_from_wl_eglstream(renderer, resource))) {
+		(void)0; // Nothing special is needed for EGLStream texture here
 	} else {
 		wlr_log(WLR_ERROR, "Cannot upload texture: unknown buffer type");
 
@@ -227,7 +231,10 @@ struct wlr_client_buffer *wlr_client_buffer_import(
 		return NULL;
 	}
 
-	struct wlr_texture *texture = wlr_texture_from_buffer(renderer, buffer);
+	if (texture == NULL && buffer != NULL) {
+		texture = wlr_texture_from_buffer(renderer, buffer);
+	}
+
 	wlr_buffer_unlock(buffer);
 	if (texture == NULL) {
 		wlr_log(WLR_ERROR, "Failed to create texture");

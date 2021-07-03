@@ -15,6 +15,7 @@
 #include "render/gbm_allocator.h"
 #include "render/wlr_renderer.h"
 #include "util/signal.h"
+#include "backend/drm/drm.h"
 
 struct wlr_headless_backend *headless_backend_from_backend(
 		struct wlr_backend *wlr_backend) {
@@ -118,6 +119,9 @@ static void handle_renderer_destroy(struct wl_listener *listener, void *data) {
 
 static bool backend_init(struct wlr_headless_backend *backend,
 		struct wl_display *display, struct wlr_renderer *renderer) {
+	if (drm_is_eglstreams(backend->drm_fd)) {
+		return false; // Not supported
+	}
 	wlr_backend_init(&backend->backend, &backend_impl);
 
 	backend->display = display;
