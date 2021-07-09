@@ -1,4 +1,4 @@
-# wlroots-wglstreams - NVidia EGLStreams support for popular wayland compositor library!
+# wlroots-eglstreams - NVidia EGLStreams support for popular wayland compositor library!
 
 Supported:
 ```
