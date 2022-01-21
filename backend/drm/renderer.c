@@ -147,7 +147,6 @@ struct wlr_drm_format *drm_plane_pick_render_format(
 		memset(drm_format, 0, sizeof(*drm_format));
 		return drm_format;
 	}
-
 	const struct wlr_drm_format_set *render_formats =
 		wlr_renderer_get_render_formats(renderer->wlr_rend);
 	if (render_formats == NULL) {
@@ -433,7 +432,6 @@ error_fb:
 	free(fb);
 	return NULL;
 }
-
 
 void drm_fb_destroy(struct wlr_drm_fb *fb) {
 	struct wlr_drm_backend *drm = fb->backend;

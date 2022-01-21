@@ -29,6 +29,7 @@
 #include <wlr/render/dmabuf.h>
 #include <wlr/render/drm_format_set.h>
 
+
 #ifndef EGL_NV_stream_attrib
 #define EGL_NV_stream_attrib 1
 typedef EGLStreamKHR (EGLAPIENTRYP PFNEGLCREATESTREAMATTRIBNVPROC)(EGLDisplay dpy, const EGLAttrib *attrib_list);

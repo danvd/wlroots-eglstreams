@@ -1042,6 +1042,7 @@ int wlr_egl_dup_drm_fd(struct wlr_egl *egl) {
 	return render_fd;
 }
 
+
 bool wlr_egl_create_eglstreams_surface(struct wlr_eglstream *egl_stream,
 		uint32_t plane_id, int width, int height) {
 

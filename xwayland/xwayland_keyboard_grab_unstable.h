@@ -19,3 +19,4 @@ struct xwayland_keyboard_grab_manager *xwayland_keyboard_grab_manager_create(
 	struct wl_display *display);
 
 #endif
+

@@ -476,7 +476,7 @@ struct wlr_buffer *gles2_buffer_from_wl_eglstream(struct wlr_renderer *wlr_rende
 			ok = true;
 		}
 	}
-	
+
 	glBindTexture(GL_TEXTURE_EXTERNAL_OES, 0);
 
 	pop_gles2_debug(renderer);

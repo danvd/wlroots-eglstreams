@@ -104,7 +104,6 @@ static struct wlr_gles2_buffer *create_buffer(struct wlr_gles2_renderer *rendere
 	if (buffer->buffer->egl_stream) {
 		assert(buffer->buffer->egl_stream->surface);
 		push_gles2_debug(renderer);
-
 		buffer->rbo = 0;
 		glGenFramebuffers(1, &buffer->fbo);
 		glBindFramebuffer(GL_FRAMEBUFFER, buffer->fbo);
@@ -121,7 +120,6 @@ static struct wlr_gles2_buffer *create_buffer(struct wlr_gles2_renderer *rendere
 		if (!wlr_buffer_get_dmabuf(wlr_buffer, &dmabuf)) {
 			goto error_buffer;
 		}
-
 		bool external_only;
 		buffer->image = wlr_egl_create_image_from_dmabuf(renderer->egl,
 			&dmabuf, &external_only);
@@ -700,7 +698,6 @@ static GLuint compile_shader(struct wlr_gles2_renderer *renderer,
 	GLuint shader = glCreateShader(type);
 	glShaderSource(shader, 1, &src, NULL);
 	glCompileShader(shader);
-
 	GLint ok;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
 	if (ok == GL_FALSE) {
@@ -792,6 +789,7 @@ struct wlr_renderer *wlr_gles2_renderer_create_with_drm_fd(int drm_fd) {
 		wlr_log(WLR_ERROR, "Could not initialize EGL");
 		return NULL;
 	}
+
 	struct wlr_renderer *renderer = wlr_gles2_renderer_create(egl);
 	if (!renderer) {
 		wlr_log(WLR_ERROR, "Failed to create GLES2 renderer");

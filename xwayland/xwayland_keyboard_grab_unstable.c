@@ -173,3 +173,4 @@ struct xwayland_keyboard_grab_manager *xwayland_keyboard_grab_manager_create(
 	return manager;
 }
 
+

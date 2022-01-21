@@ -239,7 +239,7 @@ bool wlr_renderer_init_wl_shm(struct wlr_renderer *r,
 	}
 
 	bool is_eglstreams = drm_is_eglstreams(wlr_renderer_get_drm_fd(r));
-	
+
 	bool argb8888 = is_eglstreams, xrgb8888 = is_eglstreams;
 	for (size_t i = 0; i < len; ++i) {
 		// ARGB8888 and XRGB8888 must be supported and are implicitly
@@ -253,7 +253,8 @@ bool wlr_renderer_init_wl_shm(struct wlr_renderer *r,
 			xrgb8888 = true;
 			break;
 		default:
-			if (wl_display_add_shm_format(wl_display, fmt) == NULL) {
+			if (!drm_is_eglstreams(wlr_renderer_get_drm_fd(r)) &&
+			wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
 				wlr_log(WLR_ERROR, "Failed to initialize wl_shm: "
 					"failed to add format");
 				return false;
@@ -279,8 +280,8 @@ bool wlr_renderer_init_wl_display(struct wlr_renderer *r,
 		} else {
 			wlr_log(WLR_INFO, "Cannot get renderer DRM FD, disabling wl_drm");
 		}
-		if (!drm_is_eglstreams(wlr_renderer_get_drm_fd(r)) &&
-			wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
+
+		if (wlr_linux_dmabuf_v1_create(wl_display, r) == NULL) {
 			return false;
 		}
 	}

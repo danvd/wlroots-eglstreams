@@ -245,3 +245,4 @@ static const struct wlr_allocator_interface allocator_impl = {
 	.destroy = allocator_destroy,
 	.create_buffer = allocator_create_buffer,
 };
+

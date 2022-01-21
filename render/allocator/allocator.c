@@ -91,12 +91,11 @@ struct wlr_allocator *allocator_autocreate_with_drm_fd(
 		struct wlr_backend *backend, struct wlr_renderer *renderer,
 		int drm_fd) {
 	uint32_t backend_caps = backend_get_buffer_caps(backend);
+	uint32_t renderer_caps = renderer_get_render_buffer_caps(renderer);
 
 	if (drm_is_eglstreams(drm_fd)) {
 		return wlr_eglstreams_allocator_create(backend, renderer, backend_caps);
 	}
-
-	uint32_t renderer_caps = renderer_get_render_buffer_caps(renderer);
 
 	struct wlr_allocator *alloc = NULL;
 	uint32_t gbm_caps = WLR_BUFFER_CAP_DMABUF;

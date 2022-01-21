@@ -40,7 +40,7 @@ static const uint32_t SUPPORTED_OUTPUT_STATE =
 	WLR_OUTPUT_STATE_GAMMA_LUT;
 
 static void handle_page_flip(int fd, unsigned seq,
-		unsigned tv_sec, unsigned tv_usec, unsigned crtc_id, void *data);
+	unsigned tv_sec, unsigned tv_usec, unsigned crtc_id, void *data);
 
 bool check_drm_features(struct wlr_drm_backend *drm) {
 	if (drmGetCap(drm->fd, DRM_CAP_CURSOR_WIDTH, &drm->cursor_width)) {
@@ -209,7 +209,7 @@ static bool init_planes(struct wlr_drm_backend *drm) {
 			continue;
 		}
 
-		// HW cursors are not supported for EGLStreams
+                // HW cursors are not supported for EGLStreams
 		if (drm->is_eglstreams && type == DRM_PLANE_TYPE_CURSOR) {
 			drmModeFreePlane(plane);
 			continue;
